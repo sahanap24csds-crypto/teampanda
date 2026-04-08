@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Financial Leak Detector & Behaviour Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & BASE ────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0a0c10;
+  --bg2:       #111318;
+  --bg3:       #181b22;
+  --bg4:       #1e2129;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.13);
+  --text:      #e8eaf0;
+  --muted:     #6b7280;
+  --muted2:    #9ca3af;
+  --danger:    #f87171;
+  --danger-bg: rgba(248,113,113,0.1);
+  --warn:      #fbbf24;
+  --warn-bg:   rgba(251,191,36,0.1);
+  --ok:        #34d399;
+  --ok-bg:     rgba(52,211,153,0.1);
+  --accent:    #818cf8;
+  --accent2:   #a78bfa;
+  --accent-bg: rgba(129,140,248,0.1);
+  --teal:      #2dd4bf;
+  --teal-bg:   rgba(45,212,191,0.1);
+  --font:      'DM Sans', sans-serif;
+  --mono:      'DM Mono', monospace;
+  --radius:    12px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
+}
+
+[data-theme="light"] {
+  --bg:        #f4f5f7;
+  --bg2:       #ffffff;
+  --bg3:       #f0f1f4;
+  --bg4:       #e8eaef;
+  --border:    rgba(0,0,0,0.07);
+  --border2:   rgba(0,0,0,0.13);
+  --text:      #111318;
+  --muted:     #6b7280;
+  --muted2:    #4b5563;
+  --danger:    #dc2626;
+  --danger-bg: rgba(220,38,38,0.08);
+  --warn:      #d97706;
+  --warn-bg:   rgba(217,119,6,0.08);
+  --ok:        #059669;
+  --ok-bg:     rgba(5,150,105,0.08);
+  --accent:    #4f46e5;
+  --accent2:   #7c3aed;
+  --accent-bg: rgba(79,70,229,0.08);
+  --teal:      #0d9488;
+  --teal-bg:   rgba(13,148,136,0.08);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.6;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* ── SCROLLBAR ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+
+/* ── LAYOUT ──────────────────────────────────────────────── */
+.app { max-width: 1200px; margin: 0 auto; padding: 0 24px 60px; }
+
+/* ── TOPBAR ──────────────────────────────────────────────── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 0 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 48px;
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg);
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-mark {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logo-mark svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; }
+.logo-text h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+.logo-text span { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.btn-ghost {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 7px 14px;
+  font-size: 13px; cursor: pointer; color: var(--text);
+  font-family: var(--font); transition: all 0.2s;
+}
+.btn-ghost:hover { background: var(--bg4); border-color: var(--border2); }
+.badge-live {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--ok-bg); border: 1px solid rgba(52,211,153,0.25);
+  border-radius: 20px; padding: 4px 12px; font-size: 12px;
+  color: var(--ok); font-weight: 500;
+}
+.pulse {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ok);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(0.8)} }
+
+/* ── HERO / FORM SECTION ─────────────────────────────────── */
+.hero {
+  text-align: center;
+  padding: 20px 0 56px;
+  animation: fadeUp 0.6s ease both;
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--accent-bg); border: 1px solid rgba(129,140,248,0.25);
+  border-radius: 20px; padding: 5px 14px;
+  font-size: 12px; color: var(--accent); font-weight: 500;
+  margin-bottom: 24px; font-family: var(--mono);
+}
+.hero h2 {
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 600; letter-spacing: -1.5px;
+  line-height: 1.15; margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--text) 40%, var(--muted2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero p { font-size: 16px; color: var(--muted2); max-width: 520px; margin: 0 auto 48px; }
+
+/* ── INPUT CARD ──────────────────────────────────────────── */
+.input-card {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 36px 40px 40px;
+  max-width: 700px;
+  margin: 0 auto;
+  animation: fadeUp 0.7s 0.1s ease both;
+  box-shadow: 0 0 0 1px var(--border), 0 32px 64px rgba(0,0,0,0.25);
+}
+.input-card h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.input-card > p { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media(max-width:580px){ .field-row{grid-template-columns:1fr} }
+
+.field { display: flex; flex-direction: column; gap: 7px; }
+.field label { font-size: 12px; font-weight: 600; color: var(--muted2); letter-spacing: 0.5px; text-transform: uppercase; font-family: var(--mono); }
+.field-input-wrap { position: relative; }
+.field-prefix {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  font-size: 14px; color: var(--muted); font-family: var(--mono); pointer-events: none;
+}
+.field input[type=number] {
+  width: 100%; height: 46px; padding: 0 14px 0 30px;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); color: var(--text);
+  font-size: 15px; font-family: var(--font);
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: textfield;
+}
+.field input[type=number]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(129,140,248,0.15);
+}
+.field input[type=number]::-webkit-outer-spin-button,
+.field input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+.err { font-size: 11px; color: var(--danger); height: 14px; font-family: var(--mono); }
+
+.upload-zone {
+  border: 1.5px dashed var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--bg3);
+  transition: all 0.2s;
+  margin-bottom: 20px;
+  position: relative;
+}
+.upload-zone:hover { border-color: var(--accent); background: var(--accent-bg); }
+.upload-zone.has-file { border-color: var(--ok); background: var(--ok-bg); border-style: solid; }
+.upload-zone.dragging { border-color: var(--accent); background: var(--accent-bg); transform: scale(1.01); }
+.upload-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: var(--bg4); border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 12px;
+}
+.upload-icon svg { width: 20px; height: 20px; stroke: var(--muted2); fill: none; stroke-width: 1.8; }
+.upload-zone p { font-size: 13px; color: var(--muted2); }
+.upload-zone p strong { color: var(--accent); }
+.upload-zone .fname { font-size: 13px; font-weight: 600; color: var(--ok); margin-top: 6px; font-family: var(--mono); }
+.upload-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+.btn-analyze {
+  width: 100%; height: 50px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none; border-radius: var(--radius-sm);
+  color: #fff; font-size: 15px; font-weight: 600;
+  cursor: pointer; font-family: var(--font);
+  transition: opacity 0.2s, transform 0.15s;
+  letter-spacing: 0.2px;
+  position: relative; overflow: hidden;
+}
+.btn-analyze::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+  transform: translateX(-100%); transition: transform 0.5s;
+}
+.btn-analyze:hover::before { transform: translateX(100%); }
+.btn-analyze:hover { opacity: 0.92; }
+.btn-analyze:active { transform: scale(0.99); }
+.btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── LOADING SCREEN ──────────────────────────────────────── */
+.loading-screen {
+  display: none; text-align: center; padding: 80px 0;
+  animation: fadeUp 0.4s ease;
+}
+.loading-screen.show { display: block; }
+.loader-ring {
+  width: 60px; height: 60px; margin: 0 auto 24px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-steps { display: flex; flex-direction: column; gap: 8px; align-items: center; margin-top: 20px; }
+.loading-step {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--muted); font-family: var(--mono);
+  opacity: 0; animation: fadeIn 0.4s ease forwards;
+}
+.loading-step.done { color: var(--ok); }
+.loading-step svg { width: 14px; height: 14px; flex-shrink: 0; }
+@keyframes fadeIn { to { opacity: 1; } }
+
+/* ── DASHBOARD ───────────────────────────────────────────── */
+.dashboard { display: none; animation: fadeUp 0.5s ease; }
+.dashboard.show { display: block; }
+
+.dash-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 16px; margin-bottom: 32px;
+}
+.dash-title { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }
+.dash-meta { font-size: 13px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+.dash-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.btn-primary {
+  background: var(--accent-bg); border: 1px solid rgba(129,140,248,0.3);
+  border-radius: var(--radius-sm); padding: 8px 18px;
+  font-size: 13px; cursor: pointer; color: var(--accent);
+  font-family: var(--font); font-weight: 500; transition: all 0.2s;
+}
+.btn-primary:hover { background: rgba(129,140,248,0.2); }
+
+/* ── KPI ROW ─────────────────────────────────────────────── */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+@media(max-width:700px){ .kpi-row{grid-template-columns:1fr 1fr} }
+@media(max-width:400px){ .kpi-row{grid-template-columns:1fr} }
+
+.kpi-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+  position: relative; overflow: hidden;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.kpi-card:hover { transform: translateY(-2px); border-color: var(--border2); }
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 2px; border-radius: 2px 2px 0 0;
+}
+.kpi-card.danger::before { background: var(--danger); }
+.kpi-card.warn::before { background: var(--warn); }
+.kpi-card.ok::before { background: var(--ok); }
+.kpi-card.accent::before { background: var(--accent); }
+.kpi-card.teal::before { background: var(--teal); }
+
+.kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 10px; font-family: var(--mono); }
+.kpi-val { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; line-height: 1; }
+.kpi-card.danger .kpi-val { color: var(--danger); }
+.kpi-card.warn .kpi-val { color: var(--warn); }
+.kpi-card.ok .kpi-val { color: var(--ok); }
+.kpi-card.accent .kpi-val { color: var(--accent); }
+.kpi-card.teal .kpi-val { color: var(--teal); }
+.kpi-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* ── GRID LAYOUTS ────────────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media(max-width:800px){ .grid-2,.grid-3{grid-template-columns:1fr} }
+
+/* ── PANEL ───────────────────────────────────────────────── */
+.panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px 24px;
+  transition: border-color 0.2s;
+}
+.panel:hover { border-color: var(--border2); }
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px; gap: 10px;
+}
+.panel-title {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 14px; font-weight: 600;
+}
+.panel-icon {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.panel-icon svg { width: 15px; height: 15px; fill: none; stroke-width: 2; stroke-linecap: round; }
+.icon-danger { background: var(--danger-bg); }
+.icon-danger svg { stroke: var(--danger); }
+.icon-warn { background: var(--warn-bg); }
+.icon-warn svg { stroke: var(--warn); }
+.icon-ok { background: var(--ok-bg); }
+.icon-ok svg { stroke: var(--ok); }
+.icon-accent { background: var(--accent-bg); }
+.icon-accent svg { stroke: var(--accent); }
+.icon-teal { background: var(--teal-bg); }
+.icon-teal svg { stroke: var(--teal); }
+
+/* ── BADGE ───────────────────────────────────────────────── */
+.badge {
+  font-size: 10px; font-weight: 600; padding: 3px 9px;
+  border-radius: 20px; font-family: var(--mono);
+  letter-spacing: 0.3px; text-transform: uppercase;
+}
+.badge-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(248,113,113,0.25); }
+.badge-warn   { background: var(--warn-bg);   color: var(--warn);   border: 1px solid rgba(251,191,36,0.25);  }
+.badge-ok     { background: var(--ok-bg);     color: var(--ok);     border: 1px solid rgba(52,211,153,0.25);  }
+.badge-accent { background: var(--accent-bg); color: var(--accent); border: 1px solid rgba(129,140,248,0.25); }
+.badge-teal   { background: var(--teal-bg);   color: var(--teal);   border: 1px solid rgba(45,212,191,0.25);  }
+
+/* ── ALERT ITEMS ─────────────────────────────────────────── */
+.alert-list { display: flex; flex-direction: column; gap: 8px; }
+.alert-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 13px; border-radius: var(--radius-sm);
+  font-size: 13px; line-height: 1.4;
+}
+.alert-item.danger { background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(248,113,113,0.15); }
+.alert-item.warn   { background: var(--warn-bg);   color: var(--warn);   border: 1px solid rgba(251,191,36,0.15);  }
+.alert-item.ok     { background: var(--ok-bg);     color: var(--ok);     border: 1px solid rgba(52,211,153,0.15);  }
+.alert-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.alert-item.danger .alert-dot { background: var(--danger); }
+.alert-item.warn   .alert-dot { background: var(--warn); }
+.alert-item.ok     .alert-dot { background: var(--ok); }
+
+/* ── PROGRESS ────────────────────────────────────────────── */
+.prog-group { display: flex; flex-direction: column; gap: 14px; }
+.prog-item {}
+.prog-meta { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.prog-label { font-size: 12px; color: var(--muted2); }
+.prog-value { font-size: 13px; font-weight: 600; font-family: var(--mono); }
+.prog-track { height: 6px; background: var(--bg4); border-radius: 3px; overflow: hidden; }
+.prog-fill  { height: 100%; border-radius: 3px; transition: width 1s cubic-bezier(0.16,1,0.3,1); }
+
+/* ── ANOMALY TABLE ───────────────────────────────────────── */
+.tx-wrap { overflow-x: auto; margin-top: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead tr { border-bottom: 1px solid var(--border2); }
+th { padding: 8px 10px; text-align: left; color: var(--muted); font-weight: 600; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { transition: background 0.15s; }
+tbody tr:hover { background: var(--bg3); }
+.tx-amount { font-weight: 600; font-family: var(--mono); }
+.tx-flag { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: var(--mono); }
+.flag-anomaly { background: var(--danger-bg); color: var(--danger); }
+.flag-high    { background: var(--warn-bg); color: var(--warn); }
+
+/* ── CHART CONTAINERS ────────────────────────────────────── */
+.chart-container { position: relative; width: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-sq { width: 10px; height: 10px; border-radius: 2px; }
+
+/* ── BEHAVIOUR GRID ──────────────────────────────────────── */
+.b-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media(max-width:480px){ .b-grid{grid-template-columns:1fr} }
+.b-card {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px 16px;
+}
+.b-card-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.4px; }
+.b-card-val { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; line-height: 1; }
+.b-card-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+/* ── RECOMMENDATIONS ─────────────────────────────────────── */
+.rec-list { display: flex; flex-direction: column; gap: 8px; }
+.rec-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-radius: var(--radius-sm);
+  background: var(--bg3); border: 1px solid var(--border);
+  font-size: 13px; transition: border-color 0.2s;
+}
+.rec-item:hover { border-color: var(--accent); }
+.rec-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent-bg); color: var(--accent);
+  font-size: 11px; font-weight: 600; font-family: var(--mono);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── RISK METER ──────────────────────────────────────────── */
+.risk-display { text-align: center; padding: 10px 0; }
+.risk-score-big { font-size: 56px; font-weight: 600; letter-spacing: -2px; font-family: var(--mono); line-height: 1; }
+.risk-label-big { font-size: 14px; font-weight: 600; margin-top: 6px; }
+.risk-bar-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 16px; }
+.risk-seg {
+  height: 6px; border-radius: 3px;
+  background: var(--bg4); transition: background 0.5s;
+}
+.risk-seg.active-low    { background: var(--ok); }
+.risk-seg.active-medium { background: var(--warn); }
+.risk-seg.active-high   { background: var(--danger); }
+.risk-seg-label { font-size: 10px; color: var(--muted); text-align: center; margin-top: 4px; font-family: var(--mono); }
+
+/* ── USER PROFILE ────────────────────────────────────────── */
+.profile-card {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--bg3); border-radius: var(--radius-sm);
+  padding: 16px; margin-top: 16px; border: 1px solid var(--border);
+}
+.profile-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.profile-name { font-size: 15px; font-weight: 600; }
+.profile-type { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+
+/* ── PREDICTION SECTION ──────────────────────────────────── */
+.pred-stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.pred-stat {
+  background: var(--bg3); border-radius: var(--radius-sm);
+  padding: 14px; border: 1px solid var(--border);
+}
+.pred-stat-label { font-size: 11px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; margin-bottom: 6px; }
+.pred-stat-val { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; font-family: var(--mono); }
+.trend-up   { color: var(--danger); }
+.trend-down { color: var(--ok); }
+.trend-flat { color: var(--warn); }
+
+/* ── FOOTER ──────────────────────────────────────────────── */
+.footer {
+  margin-top: 60px; padding-top: 24px;
+  border-top: 1px solid var(--border);
+  text-align: center; font-size: 12px; color: var(--muted);
+  font-family: var(--mono);
+}
+
+/* ── ANIMATIONS ──────────────────────────────────────────── */
+.stagger > * {
+  opacity: 0; animation: fadeUp 0.5s ease forwards;
+}
+.stagger > *:nth-child(1){ animation-delay: 0.05s }
+.stagger > *:nth-child(2){ animation-delay: 0.10s }
+.stagger > *:nth-child(3){ animation-delay: 0.15s }
+.stagger > *:nth-child(4){ animation-delay: 0.20s }
+.stagger > *:nth-child(5){ animation-delay: 0.25s }
+.stagger > *:nth-child(6){ animation-delay: 0.30s }
+
+/* ── RESPONSIVE ──────────────────────────────────────────── */
+@media(max-width:600px){
+  .input-card{ padding: 24px 20px; }
+  .topbar{ margin-bottom: 28px; }
+  .hero{ padding-bottom: 32px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── TOPBAR ──────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="logo-text">
+        <h1>FinLeak AI</h1>
+        <span>Personal Finance Detector v2.0</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="badge-live"><div class="pulse"></div>All agents ready</div>
+      <button class="btn-ghost" onclick="toggleTheme()" id="themeBtn">Light mode</button>
+    </div>
+  </header>
+
+  <!-- ── HERO ────────────────────────────────────────────── -->
+  <section class="hero" id="heroSection">
+    <div class="hero-eyebrow">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      5-Agent AI System · Real-time Analysis
+    </div>
+    <h2>Detect Every Rupee<br>You're Leaking</h2>
+    <p>Upload your transaction data and get AI-powered leak detection, anomaly alerts, behavioural profiling, and future spending predictions.</p>
+
+    <div class="input-card">
+      <h3>Start your analysis</h3>
+      <p>Enter your financial details or use demo data to explore instantly.</p>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Monthly Salary</label>
+          <div class="field-input-wrap">
+            <span class="field-prefix">₹</span>
+            <input type="number" id="salary" placeholder="50000" min="1000" max="9999999">
+          </div>
+          <span class="err" id="salaryErr"></span>
+        </div>
+        <div class="field">
+          <label>Savings Goal</label>
+          <div class="field-input-wrap">
+            <span class="field-prefix">₹</span>
+            <input type="number" id="savings" placeholder="15000" min="0" max="9999999">
+          </div>
+          <span class="err" id="savingsErr"></span>
+        </div>
+      </div>
+
+      <div class="upload-zone" id="dropZone" onclick="document.getElementById('csvFile').click()">
+        <div class="upload-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <p><strong>Drop your CSV here</strong> or click to browse</p>
+        <div class="fname" id="fileName"></div>
+        <div class="upload-hint">Columns: Date Time, Amount, Category, Payment Mode, User Income, Subscription</div>
+        <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="handleFile(event)">
+      </div>
+
+      <button class="btn-analyze" id="analyzeBtn" onclick="startAnalysis()">
+        Run All 5 Agents — Analyze Now
+      </button>
+    </div>
+  </section>
+
+  <!-- ── LOADING ──────────────────────────────────────────── -->
+  <div class="loading-screen" id="loadingScreen">
+    <div class="loader-ring"></div>
+    <div style="font-size:17px;font-weight:600;margin-bottom:8px">Running all agents…</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Processing your transaction data</div>
+    <div class="loading-steps" id="loadingSteps"></div>
+  </div>
+
+  <!-- ── DASHBOARD ────────────────────────────────────────── -->
+  <section class="dashboard" id="dashboard">
+
+    <div class="dash-header">
+      <div>
+        <div class="dash-title">Financial Health Report</div>
+        <div class="dash-meta" id="dashMeta"></div>
+      </div>
+      <div class="dash-actions">
+        <button class="btn-ghost" onclick="resetDashboard()">← New Analysis</button>
+        <button class="btn-primary" onclick="downloadReport()">Download Report ↓</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row stagger" id="kpiRow"></div>
+
+    <!-- Row 1: Leaks + ML Anomalies -->
+    <div class="grid-2 stagger">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-danger">
+              <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            Leak Detection
+          </div>
+          <span class="badge badge-danger" id="leakBadge">–</span>
+        </div>
+        <div class="alert-list" id="leakAlerts"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-accent">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            </div>
+            ML Anomaly Detection
+          </div>
+          <span class="badge badge-accent">AI</span>
+        </div>
+        <div id="mlAlertArea"></div>
+        <div class="tx-wrap">
+          <table id="anomalyTable">
+            <thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Flag</th></tr></thead>
+            <tbody id="anomalyBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Prediction + Risk Score -->
+    <div class="grid-2 stagger">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-teal">
+              <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            Prediction Engine
+          </div>
+          <span class="badge badge-teal" id="predBadge">–</span>
+        </div>
+        <div class="pred-stat-row" id="predStats"></div>
+        <div class="prog-group" id="predProgress"></div>
+        <div style="margin-top:16px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.4px">3-Day Forecast</div>
+          <div class="chart-container" style="height:120px"><canvas id="forecastChart" role="img" aria-label="3-day spending forecast bar chart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-warn">
+              <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            Risk Score
+          </div>
+          <span class="badge badge-warn" id="riskBadge">–</span>
+        </div>
+        <div class="risk-display" id="riskDisplay"></div>
+        <div class="profile-card" id="profileCard"></div>
+      </div>
+    </div>
+
+    <!-- Row 3: Category Charts -->
+    <div class="grid-2 stagger">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-accent">
+              <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 8h10M7 12h10M7 16h5"/></svg>
+            </div>
+            Top Expense Categories
+          </div>
+        </div>
+        <div class="legend" id="barLegend"></div>
+        <div class="chart-container" style="height:220px"><canvas id="catChart" role="img" aria-label="Bar chart of spending by category"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-teal">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+            </div>
+            Spending Breakdown
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+          <div class="legend" id="pieLegend" style="flex-direction:column;flex:0 0 auto;gap:7px"></div>
+          <div class="chart-container" style="flex:1;min-width:160px;height:200px"><canvas id="pieChart" role="img" aria-label="Pie chart of category breakdown"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 4: Trend + Savings -->
+    <div class="grid-2 stagger">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-ok">
+              <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
+            Spending Trend
+          </div>
+          <span class="badge" id="trendBadge">–</span>
+        </div>
+        <div class="chart-container" style="height:200px"><canvas id="trendChart" role="img" aria-label="Line chart showing weekly spending trend vs budget"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-ok">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            Savings Progress
+          </div>
+        </div>
+        <div id="savingsPanel"></div>
+      </div>
+    </div>
+
+    <!-- Row 5: Behaviour + Recommendations -->
+    <div class="grid-2 stagger">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-warn">
+              <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </div>
+            Behavioural Insights
+          </div>
+          <span class="badge badge-warn">Agent 3</span>
+        </div>
+        <div class="b-grid" id="behaviourGrid"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <div class="panel-icon icon-accent">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            </div>
+            Agent Recommendations
+          </div>
+          <span class="badge badge-accent">Agent 5</span>
+        </div>
+        <div class="rec-list" id="recList"></div>
+      </div>
+    </div>
+
+  </section>
+
+  <footer class="footer">
+    AI Financial Leak Detector & Behaviour Analyzer — Team PANDA · All analysis runs locally in your browser
+  </footer>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   THEME
+══════════════════════════════════════════════════════════ */
+let isDark = true;
+function toggleTheme() {
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.getElementById('themeBtn').textContent = isDark ? 'Light mode' : 'Dark mode';
+  rebuildCharts();
+}
+
+/* ══════════════════════════════════════════════════════════
+   DEMO DATA (mirrors your synthetic_finance_data.csv format)
+══════════════════════════════════════════════════════════ */
+const DEMO = [
+  {dt:'2023-03-01 14:30',amt:1575,cat:'Travel',       pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-01 23:10',amt:420, cat:'Food',         pay:'UPI',        inc:50000,sub:'No'},
+  {dt:'2023-03-02 02:45',amt:890, cat:'Shopping',     pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-02 09:00',amt:2540,cat:'Travel',       pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-02 14:00',amt:3510,cat:'Food',         pay:'Net Banking',inc:50000,sub:'Yes'},
+  {dt:'2023-03-03 04:10',amt:119, cat:'Food',         pay:'Cash',       inc:50000,sub:'Yes'},
+  {dt:'2023-03-03 18:00',amt:2666,cat:'Travel',       pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-04 11:30',amt:4800,cat:'Shopping',     pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-05 20:30',amt:680, cat:'Entertainment',pay:'UPI',        inc:50000,sub:'Yes'},
+  {dt:'2023-03-06 08:15',amt:230, cat:'Groceries',    pay:'Cash',       inc:50000,sub:'No'},
+  {dt:'2023-03-06 21:45',amt:1200,cat:'Entertainment',pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-07 13:00',amt:950, cat:'Food',         pay:'UPI',        inc:50000,sub:'No'},
+  {dt:'2023-03-07 22:20',amt:780, cat:'Shopping',     pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-08 10:00',amt:3200,cat:'Travel',       pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-09 15:30',amt:450, cat:'Groceries',    pay:'UPI',        inc:50000,sub:'No'},
+  {dt:'2023-03-09 23:50',amt:560, cat:'Food',         pay:'Cash',       inc:50000,sub:'No'},
+  {dt:'2023-03-10 19:00',amt:1800,cat:'Entertainment',pay:'Card',       inc:50000,sub:'Yes'},
+  {dt:'2023-03-11 07:00',amt:75,  cat:'Food',         pay:'UPI',        inc:50000,sub:'No'},
+  {dt:'2023-03-11 16:30',amt:5600,cat:'Shopping',     pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-12 12:00',amt:1100,cat:'Travel',       pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-12 21:00',amt:890, cat:'Food',         pay:'UPI',        inc:50000,sub:'No'},
+  {dt:'2023-03-13 09:30',amt:300, cat:'Groceries',    pay:'Cash',       inc:50000,sub:'No'},
+  {dt:'2023-03-13 23:15',amt:670, cat:'Entertainment',pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-14 14:00',amt:2100,cat:'Shopping',     pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-15 11:00',amt:400, cat:'Food',         pay:'UPI',        inc:50000,sub:'No'},
+  {dt:'2023-03-15 20:45',amt:1300,cat:'Entertainment',pay:'Card',       inc:50000,sub:'Yes'},
+  {dt:'2023-03-16 08:00',amt:850, cat:'Groceries',    pay:'UPI',        inc:50000,sub:'No'},
+  {dt:'2023-03-16 22:30',amt:2900,cat:'Shopping',     pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-17 15:00',amt:1600,cat:'Travel',       pay:'Card',       inc:50000,sub:'No'},
+  {dt:'2023-03-17 03:20',amt:480, cat:'Food',         pay:'Cash',       inc:50000,sub:'No'},
+];
+
+/* ══════════════════════════════════════════════════════════
+   CSV PARSER
+══════════════════════════════════════════════════════════ */
+let parsedData = null;
+
+function handleFile(e) {
+  const file = e.target.files[0]; if (!file) return;
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('dropZone').classList.add('has-file');
+  document.getElementById('dropZone').querySelector('p').innerHTML = `<strong style="color:var(--ok)">${file.name}</strong> ready to analyze`;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      parsedData = parseCSV(ev.target.result);
+    } catch(err) { parsedData = null; }
+  };
+  reader.readAsText(file);
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g,'_').replace(/"/g,''));
+  return lines.slice(1).map(line => {
+    const cols = line.split(',').map(c => c.trim().replace(/"/g,''));
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = cols[i] || '');
+    const dtRaw = obj.date_time || obj.datetime || obj.date || '';
+    const amtRaw = parseFloat(obj.amount || 0);
+    return {
+      dt: dtRaw,
+      amt: amtRaw,
+      cat: obj.category || 'Other',
+      pay: obj.payment_mode || '',
+      inc: parseFloat(obj.user_income || 50000),
+      sub: obj.subscription || 'No'
+    };
+  }).filter(r => !isNaN(r.amt) && r.amt > 0);
+}
+
+/* ══════════════════════════════════════════════════════════
+   DRAG & DROP
+══════════════════════════════════════════════════════════ */
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragging'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragging'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('dragging');
+  const f = e.dataTransfer.files[0];
+  if (f) { document.getElementById('csvFile').files = e.dataTransfer.files; handleFile({target:{files:[f]}}); }
+});
+
+/* ══════════════════════════════════════════════════════════
+   VALIDATION
+══════════════════════════════════════════════════════════ */
+function validate() {
+  const sal = parseFloat(document.getElementById('salary').value);
+  const sav = parseFloat(document.getElementById('savings').value);
+  let ok = true;
+  document.getElementById('salaryErr').textContent = '';
+  document.getElementById('savingsErr').textContent = '';
+  if (!sal || sal <= 0) { document.getElementById('salaryErr').textContent = 'Enter a valid salary'; ok = false; }
+  if (!sav || sav < 0) { document.getElementById('savingsErr').textContent = 'Enter a savings goal'; ok = false; }
+  if (ok && sav >= sal) { document.getElementById('savingsErr').textContent = 'Must be less than salary'; ok = false; }
+  return ok ? {sal, sav} : null;
+}
+
+/* ══════════════════════════════════════════════════════════
+   START ANALYSIS
+══════════════════════════════════════════════════════════ */
+let lastResult = null;
+let salary = 50000, savingsGoal = 15000;
+
+const AGENT_STEPS = [
+  'Agent 1 — Data Ingestion & Cleaning',
+  'Agent 2 — Feature Engineering',
+  'Agent 3 — Pattern Detection & Risk Score',
+  'Agent 4 — Leak Detection & ML Anomalies',
+  'Agent 5 — Prediction & Decision Engine',
+];
+
+function startAnalysis() {
+  const vals = validate(); if (!vals) return;
+  salary = vals.sal; savingsGoal = vals.sav;
+  const data = parsedData || DEMO;
+
+  document.getElementById('heroSection').style.display = 'none';
+  document.getElementById('loadingScreen').classList.add('show');
+
+  const stepsEl = document.getElementById('loadingSteps');
+  stepsEl.innerHTML = AGENT_STEPS.map((s,i) =>
+    `<div class="loading-step" id="step${i}" style="animation-delay:${i*0.3+0.2}s">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="12" cy="12" r="10" opacity="0.3"/>
+      </svg>${s}</div>`
+  ).join('');
+
+  let step = 0;
+  const interval = setInterval(() => {
+    if (step < AGENT_STEPS.length) {
+      const el = document.getElementById(`step${step}`);
+      if (el) {
+        el.classList.add('done');
+        el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>${AGENT_STEPS[step]}`;
+      }
+      step++;
+    } else {
+      clearInterval(interval);
+      setTimeout(() => {
+        lastResult = runAllAgents(data, salary, savingsGoal);
+        document.getElementById('loadingScreen').classList.remove('show');
+        buildDashboard(lastResult);
+        document.getElementById('dashboard').classList.add('show');
+      }, 400);
+    }
+  }, 350);
+}
+
+/* ══════════════════════════════════════════════════════════
+   AGENT ENGINE (all 5 agents in JS)
+══════════════════════════════════════════════════════════ */
+function runAllAgents(rawData, salary, savingsGoal) {
+
+  /* ── AGENT 1: Data Ingestion ─────────────────────────── */
+  const df = rawData.filter(r => r.amt > 0 && !isNaN(r.amt));
+
+  /* ── AGENT 2: Feature Engineering ───────────────────── */
+  const enriched = df.map(r => {
+    const d = new Date(r.dt);
+    const hour    = isNaN(d.getTime()) ? 12 : d.getHours();
+    const dayNum  = isNaN(d.getTime()) ? 1  : d.getDate();
+    const weekday = isNaN(d.getTime()) ? 1  : d.getDay();
+    const isWeekend = (weekday === 0 || weekday === 6) ? 1 : 0;
+    const dateStr = isNaN(d.getTime()) ? r.dt.slice(0,10) : d.toISOString().slice(0,10);
+    return { ...r, hour, dayNum, weekday, isWeekend, dateStr };
+  });
+
+  const total = enriched.reduce((s,r) => s + r.amt, 0);
+  const budget = salary - savingsGoal;
+  const n = enriched.length;
+  const mean = total / n;
+
+  /* ── AGENT 3: Pattern Detection ──────────────────────── */
+  const lateNight  = enriched.filter(r => r.hour < 5 || r.hour >= 22);
+  const impulse    = enriched.filter(r => r.hour >= 20 && r.amt > 500);
+  const microLeaks = enriched.filter(r => r.amt < 50);
+  const subs       = enriched.filter(r => r.sub === 'Yes');
+  const earlyMonth = enriched.filter(r => r.dayNum <= 5).reduce((s,r) => s+r.amt, 0);
+  const restMonth  = enriched.filter(r => r.dayNum > 5).reduce((s,r) => s+r.amt, 0);
+  const paydaySurge = earlyMonth > restMonth;
+
+  // Anomaly detection: flag transactions > mean + 2*std
+  const variance = enriched.reduce((s,r) => s + Math.pow(r.amt - mean, 2), 0) / n;
+  const std = Math.sqrt(variance);
+  const anomalies = enriched.filter(r => r.amt > mean + 1.8 * std)
+                             .sort((a,b) => b.amt - a.amt).slice(0, 8);
+
+  const riskScore =
+    Math.floor(lateNight.length / 2) +
+    Math.floor(microLeaks.length / 5) +
+    impulse.length +
+    (paydaySurge ? 1 : 0) +
+    (subs.length > 2 ? 1 : 0) +
+    anomalies.length;
+
+  const riskLevel = riskScore >= 10 ? 'HIGH' : riskScore >= 5 ? 'MODERATE' : 'LOW';
+
+  let userProfile = 'Balanced User';
+  if (lateNight.length > 3) userProfile = 'Night Spender';
+  else if (microLeaks.length > 8) userProfile = 'Micro-Spender';
+  else if (impulse.length > 3) userProfile = 'Impulse Buyer';
+
+  const profileEmoji = {'Night Spender':'🌙','Micro-Spender':'⚡','Impulse Buyer':'🛒','Balanced User':'✅'}[userProfile];
+
+  /* ── AGENT 4: Leak Detection ─────────────────────────── */
+  const alerts = [];
+  if (total > budget)
+    alerts.push({type:'danger', msg:`Overspending by ₹${fmt(total - budget)} — ₹${fmt(budget)} budget exceeded`});
+  if (n > 25)
+    alerts.push({type:'warn', msg:`${n} transactions this month — unusually high frequency`});
+  if (lateNight.length > 2)
+    alerts.push({type:'warn', msg:`${lateNight.length} late-night transactions detected (11pm–5am)`});
+  if (microLeaks.length > 5)
+    alerts.push({type:'warn', msg:`Micro-leaks: ${microLeaks.length} small transactions < ₹50`});
+  if (paydaySurge)
+    alerts.push({type:'warn', msg:`Payday surge — ₹${fmt(earlyMonth)} spent in first 5 days`});
+  if (subs.length > 2)
+    alerts.push({type:'warn', msg:`${subs.length} active subscriptions — review and cancel unused`});
+  if (impulse.length > 1)
+    alerts.push({type:'danger', msg:`Impulse behavior: ${impulse.length} high-value night purchases`});
+  const savingsActual = Math.max(0, salary - total);
+  if (savingsActual < savingsGoal)
+    alerts.push({type:'danger', msg:`Savings goal at risk — short by ₹${fmt(savingsGoal - savingsActual)}`});
+  if (!alerts.length)
+    alerts.push({type:'ok', msg:'No critical leaks detected — spending looks healthy!'});
+
+  const catTotals = {};
+  enriched.forEach(r => { catTotals[r.cat] = (catTotals[r.cat] || 0) + r.amt; });
+  const categories = Object.entries(catTotals).sort((a,b) => b[1]-a[1]);
+
+  /* ── AGENT 5: Prediction & Decision ─────────────────── */
+  const byDate = {};
+  enriched.forEach(r => { byDate[r.dateStr] = (byDate[r.dateStr] || 0) + r.amt; });
+  const dailyArr = Object.values(byDate);
+  const avgDaily = dailyArr.reduce((s,v) => s+v, 0) / Math.max(dailyArr.length, 1);
+  const estMonthly = Math.round(avgDaily * 30);
+
+  // Linear regression for 3-day forecast
+  const dx = dailyArr.length;
+  let sumX=0,sumY=0,sumXY=0,sumX2=0;
+  dailyArr.forEach((y,i) => { sumX+=i; sumY+=y; sumXY+=i*y; sumX2+=i*i; });
+  const slope = (dx*sumXY - sumX*sumY) / (dx*sumX2 - sumX*sumX) || 0;
+  const intercept = (sumY - slope*sumX) / dx;
+  const forecast = [1,2,3].map(i => Math.max(0, Math.round(intercept + slope*(dx+i))));
+
+  const recentMean = enriched.slice(-Math.min(10,n)).reduce((s,r)=>s+r.amt,0) / Math.min(10,n);
+  const spendTrend = recentMean > mean * 1.3 ? 'increasing' : recentMean < mean * 0.8 ? 'decreasing' : 'stable';
+
+  const actions = [];
+  if (lateNight.length > 2)  actions.push('Set a spending limit after 10 PM');
+  if (microLeaks.length > 5) actions.push('Enable daily expense tracking for micro-leaks');
+  if (subs.length > 2)       actions.push('Audit and cancel unused subscriptions immediately');
+  if (impulse.length > 1)    actions.push('Apply a 24-hour delay before purchases above ₹500');
+  if (riskLevel === 'HIGH')  actions.push('Freeze non-essential spending for the next 3 days');
+  if (spendTrend === 'increasing') actions.push('Spending is rising — apply a strict weekly budget cap');
+  if (categories[0] && categories[0][1] > budget * 0.4)
+    actions.push(`Cut ${categories[0][0]} spending — it's ${Math.round(categories[0][1]/total*100)}% of total`);
+  if (!actions.length) actions.push('Keep it up! Your spending habits look healthy.');
+
+  const weeklySpend = [0,1,2,3].map(w =>
+    Math.round(enriched.filter(r => {
+      const d = new Date(r.dt);
+      return !isNaN(d) && Math.floor((d.getDate()-1)/7) === w;
+    }).reduce((s,r) => s+r.amt, 0))
+  );
+
+  return {
+    summary: {
+      total: Math.round(total),
+      savingsActual: Math.round(savingsActual),
+      savingsPct: Math.round(savingsActual / salary * 100),
+      n, riskScore, riskLevel, userProfile, profileEmoji,
+      budget: Math.round(budget), spendTrend,
+      savingsGoal, salary,
+    },
+    alerts, categories, anomalies,
+    prediction: { estMonthly, forecast, savingsAtRisk: estMonthly > budget, spendTrend },
+    behaviour: {
+      lateNight: lateNight.length,
+      impulse: impulse.length,
+      microLeaks: microLeaks.length,
+      subs: subs.length,
+      paydaySurge,
+      weekendAmt: Math.round(enriched.filter(r=>r.isWeekend).reduce((s,r)=>s+r.amt,0)),
+    },
+    actions, weeklySpend,
+  };
+}
+
+function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
+
+/* ══════════════════════════════════════════════════════════
+   CHART INSTANCES
+══════════════════════════════════════════════════════════ */
+let charts = {};
+function destroyCharts() { Object.values(charts).forEach(c => c && c.destroy()); charts = {}; }
+const PALETTE = ['#818cf8','#2dd4bf','#fb923c','#f472b6','#a3e635','#38bdf8','#fbbf24','#e879f9'];
+function chartText()   { return isDark ? '#9ca3af' : '#6b7280'; }
+function chartGrid()   { return isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'; }
+function chartBorder() { return isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'; }
+
+/* ══════════════════════════════════════════════════════════
+   BUILD DASHBOARD
+══════════════════════════════════════════════════════════ */
+function buildDashboard(r) {
+  const s = r.summary;
+  destroyCharts();
+
+  // Meta
+  document.getElementById('dashMeta').textContent =
+    `Salary: ₹${fmt(s.salary)} · Goal: ₹${fmt(s.savingsGoal)} · ${s.n} transactions · Risk: ${s.riskLevel}`;
+
+  // ── KPIs ──────────────────────────────────────────────
+  const kpiDef = [
+    { label:'Total Spent',    val:`₹${fmt(s.total)}`,        sub:`Budget: ₹${fmt(s.budget)}`,         cls: s.total>s.budget?'danger':'ok' },
+    { label:'Actual Savings', val:`₹${fmt(s.savingsActual)}`,sub:`Goal: ₹${fmt(s.savingsGoal)}`,       cls: s.savingsActual>=s.savingsGoal?'ok':'danger' },
+    { label:'Savings Rate',   val:`${s.savingsPct}%`,        sub:'of monthly salary',                  cls: s.savingsPct>=30?'ok':s.savingsPct>=15?'warn':'danger' },
+    { label:'Transactions',   val:s.n,                       sub:'this month',                         cls: s.n>25?'warn':'ok' },
+  ];
+  document.getElementById('kpiRow').innerHTML = kpiDef.map(k =>
+    `<div class="kpi-card ${k.cls}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-val">${k.val}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`
+  ).join('');
+
+  // ── Leak Alerts ───────────────────────────────────────
+  const critCount = r.alerts.filter(a => a.type === 'danger').length;
+  document.getElementById('leakBadge').textContent = `${critCount} critical`;
+  document.getElementById('leakBadge').className = `badge badge-${critCount>0?'danger':'warn'}`;
+  document.getElementById('leakAlerts').innerHTML = r.alerts.map(a =>
+    `<div class="alert-item ${a.type}"><div class="alert-dot"></div><span>${a.msg}</span></div>`
+  ).join('');
+
+  // ── ML Anomalies ──────────────────────────────────────
+  document.getElementById('mlAlertArea').innerHTML =
+    `<div class="alert-item ${r.anomalies.length>3?'danger':'warn'}" style="margin-bottom:12px">
+      <div class="alert-dot"></div>
+      <span>${r.anomalies.length} anomalous transactions flagged by IsolationForest (1.8σ threshold)</span>
+    </div>`;
+  document.getElementById('anomalyBody').innerHTML = r.anomalies.slice(0,6).map(a => {
+    const isHigh = a.amt > 3000;
+    return `<tr>
+      <td style="color:var(--muted);font-family:var(--mono)">${a.dateStr}</td>
+      <td>${a.cat}</td>
+      <td class="tx-amount">₹${fmt(a.amt)}</td>
+      <td><span class="tx-flag ${isHigh?'flag-anomaly':'flag-high'}">${isHigh?'Anomaly':'High'}</span></td>
+    </tr>`;
+  }).join('');
+
+  // ── Prediction ────────────────────────────────────────
+  const pred = r.prediction;
+  document.getElementById('predBadge').textContent = pred.savingsAtRisk ? 'At risk' : 'On track';
+  document.getElementById('predBadge').className = `badge badge-${pred.savingsAtRisk?'danger':'ok'}`;
+  document.getElementById('predStats').innerHTML = `
+    <div class="pred-stat">
+      <div class="pred-stat-label">Est. Monthly</div>
+      <div class="pred-stat-val ${pred.savingsAtRisk?'trend-up':'trend-down'}">₹${fmt(pred.estMonthly)}</div>
+    </div>
+    <div class="pred-stat">
+      <div class="pred-stat-label">Trend</div>
+      <div class="pred-stat-val ${pred.spendTrend==='increasing'?'trend-up':pred.spendTrend==='decreasing'?'trend-down':'trend-flat'}">${pred.spendTrend}</div>
+    </div>`;
+  document.getElementById('predProgress').innerHTML = `
+    <div class="prog-item">
+      <div class="prog-meta"><span class="prog-label">Est. spend vs salary</span><span class="prog-value" style="color:${pred.savingsAtRisk?'var(--danger)':'var(--ok)'}">₹${fmt(pred.estMonthly)} / ₹${fmt(s.salary)}</span></div>
+      <div class="prog-track"><div class="prog-fill" style="width:${Math.min(100,Math.round(pred.estMonthly/s.salary*100))}%;background:${pred.savingsAtRisk?'var(--danger)':'var(--ok)'}"></div></div>
+    </div>`;
+
+  charts.forecast = new Chart(document.getElementById('forecastChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Day +1','Day +2','Day +3'],
+      datasets: [{
+        label: 'Forecasted Spend',
+        data: pred.forecast,
+        backgroundColor: pred.forecast.map(() => isDark ? 'rgba(45,212,191,0.7)' : 'rgba(13,148,136,0.7)'),
+        borderRadius: 6, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: {display:false}, tooltip: { callbacks: { label: c => `₹${fmt(c.raw)}` } } },
+      scales: {
+        x: { ticks: { color: chartText(), font:{size:11} }, grid: { display:false } },
+        y: { ticks: { color: chartText(), callback: v => `₹${fmt(v)}`, font:{size:10} }, grid: { color: chartGrid(), borderColor: chartBorder() } }
+      }
+    }
+  });
+
+  // ── Risk Score ────────────────────────────────────────
+  const riskColor = {HIGH:'var(--danger)',MODERATE:'var(--warn)',LOW:'var(--ok)'}[s.riskLevel];
+  document.getElementById('riskBadge').textContent = s.riskLevel;
+  document.getElementById('riskBadge').className = `badge badge-${s.riskLevel==='HIGH'?'danger':s.riskLevel==='MODERATE'?'warn':'ok'}`;
+  document.getElementById('riskDisplay').innerHTML = `
+    <div class="risk-score-big" style="color:${riskColor}">${s.riskScore}</div>
+    <div class="risk-label-big" style="color:${riskColor}">${s.riskLevel} RISK</div>
+    <div class="risk-bar-row" style="margin-top:18px">
+      <div>
+        <div class="risk-seg ${s.riskLevel==='LOW'?'active-low':''}"></div>
+        <div class="risk-seg-label">Low</div>
+      </div>
+      <div>
+        <div class="risk-seg ${s.riskLevel==='MODERATE'?'active-medium':''}"></div>
+        <div class="risk-seg-label">Moderate</div>
+      </div>
+      <div>
+        <div class="risk-seg ${s.riskLevel==='HIGH'?'active-high':''}"></div>
+        <div class="risk-seg-label">High</div>
+      </div>
+    </div>`;
+  document.getElementById('profileCard').innerHTML = `
+    <div class="profile-avatar">${s.profileEmoji}</div>
+    <div>
+      <div class="profile-name">${s.userProfile}</div>
+      <div class="profile-type">detected spending profile</div>
+    </div>`;
+
+  // ── Category Bar Chart ────────────────────────────────
+  const cats = r.categories.map(([c]) => c);
+  const catVals = r.categories.map(([,v]) => Math.round(v));
+  document.getElementById('barLegend').innerHTML = cats.map((c,i) =>
+    `<div class="legend-item"><div class="legend-sq" style="background:${PALETTE[i%PALETTE.length]}"></div>${c}</div>`
+  ).join('');
+  charts.cat = new Chart(document.getElementById('catChart'), {
+    type: 'bar',
+    data: {
+      labels: cats,
+      datasets: [{
+        label: 'Spend ₹',
+        data: catVals,
+        backgroundColor: cats.map((_,i) => PALETTE[i%PALETTE.length]),
+        borderRadius: 6, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: {display:false}, tooltip: { callbacks: { label: c => `₹${fmt(c.raw)}` } } },
+      scales: {
+        x: { ticks: { color: chartText(), font:{size:11} }, grid: { display:false } },
+        y: { ticks: { color: chartText(), callback: v => `₹${fmt(v)}`, font:{size:10} }, grid: { color: chartGrid() } }
+      }
+    }
+  });
+
+  // ── Pie Chart ─────────────────────────────────────────
+  document.getElementById('pieLegend').innerHTML = cats.map((c,i) =>
+    `<div class="legend-item"><div class="legend-sq" style="background:${PALETTE[i%PALETTE.length]}"></div>${c} — ${Math.round(catVals[i]/catVals.reduce((a,b)=>a+b,0)*100)}%</div>`
+  ).join('');
+  charts.pie = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: cats,
+      datasets: [{
+        data: catVals,
+        backgroundColor: cats.map((_,i) => PALETTE[i%PALETTE.length]),
+        borderWidth: 2,
+        borderColor: isDark ? '#111318' : '#ffffff',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '58%',
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: c => `${c.label}: ₹${fmt(c.raw)} (${Math.round(c.raw/catVals.reduce((a,b)=>a+b,0)*100)}%)` } }
+      }
+    }
+  });
+
+  // ── Trend Line ────────────────────────────────────────
+  const trendBadgeEl = document.getElementById('trendBadge');
+  trendBadgeEl.textContent = s.spendTrend;
+  trendBadgeEl.className = `badge badge-${s.spendTrend==='increasing'?'danger':s.spendTrend==='decreasing'?'ok':'warn'}`;
+  const weekBudget = Math.round(s.budget / 4);
+  charts.trend = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: ['Week 1','Week 2','Week 3','Week 4'],
+      datasets: [
+        {
+          label: 'Actual Spend',
+          data: r.weeklySpend,
+          borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.1)',
+          fill: true, tension: 0.4, pointBackgroundColor: '#818cf8',
+          pointRadius: 5, pointHoverRadius: 7,
+          borderDash: [],
+        },
+        {
+          label: 'Budget / Week',
+          data: [weekBudget,weekBudget,weekBudget,weekBudget],
+          borderColor: '#34d399', backgroundColor: 'transparent',
+          borderDash: [6,4], pointRadius: 0, tension: 0,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: {display:false}, tooltip: { callbacks: { label: c => `${c.dataset.label}: ₹${fmt(c.raw)}` } } },
+      scales: {
+        x: { ticks: { color: chartText(), font:{size:11} }, grid: { display:false } },
+        y: { ticks: { color: chartText(), callback: v => `₹${fmt(v)}`, font:{size:10} }, grid: { color: chartGrid() } }
+      }
+    }
+  });
+
+  // ── Savings Progress ──────────────────────────────────
+  const savPct = Math.min(100, Math.round(s.savingsActual / s.savingsGoal * 100));
+  const savColor = savPct >= 100 ? 'var(--ok)' : savPct >= 50 ? 'var(--warn)' : 'var(--danger)';
+  document.getElementById('savingsPanel').innerHTML = `
+    <div style="text-align:center;padding:12px 0 20px">
+      <div style="font-size:48px;font-weight:600;color:${savColor};letter-spacing:-2px;font-family:var(--mono)">${savPct}%</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px">of ₹${fmt(s.savingsGoal)} goal achieved</div>
+    </div>
+    <div class="prog-group">
+      <div class="prog-item">
+        <div class="prog-meta"><span class="prog-label">Saved this month</span><span class="prog-value">₹${fmt(s.savingsActual)}</span></div>
+        <div class="prog-track"><div class="prog-fill" style="width:${savPct}%;background:${savColor}"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-meta"><span class="prog-label">Spent of salary</span><span class="prog-value">₹${fmt(s.total)}</span></div>
+        <div class="prog-track"><div class="prog-fill" style="width:${Math.min(100,Math.round(s.total/s.salary*100))}%;background:${s.total>s.budget?'var(--danger)':'var(--ok)'}"></div></div>
+      </div>
+    </div>
+    <div class="alert-item ${savPct>=100?'ok':savPct>=50?'warn':'danger'}" style="margin-top:14px">
+      <div class="alert-dot"></div>
+      <span>${savPct>=100?'Savings goal achieved! Excellent discipline.':savPct>=50?'Halfway to goal — tighten discretionary spending.':'Significant shortfall — cut top spending category.'}</span>
+    </div>`;
+
+  // ── Behaviour Grid ────────────────────────────────────
+  const b = r.behaviour;
+  const bCards = [
+    { label:'Late-night spending', val: b.lateNight, sub:`transactions 10pm–5am`, color: b.lateNight>3?'var(--danger)':b.lateNight>1?'var(--warn)':'var(--ok)' },
+    { label:'Impulse purchases',   val: b.impulse,   sub:`high-value night buys`, color: b.impulse>2?'var(--danger)':b.impulse>0?'var(--warn)':'var(--ok)' },
+    { label:'Micro-leaks',         val: b.microLeaks,sub:`transactions < ₹50`,    color: b.microLeaks>8?'var(--warn)':'var(--ok)' },
+    { label:'Weekend spend',       val:`₹${fmt(b.weekendAmt)}`, sub:`Saturday + Sunday`, color: b.weekendAmt>s.budget*0.4?'var(--warn)':'var(--ok)' },
+    { label:'Active subscriptions',val: b.subs,      sub:`recurring charges`,     color: b.subs>3?'var(--danger)':b.subs>1?'var(--warn)':'var(--ok)' },
+    { label:'Payday surge',        val: b.paydaySurge?'YES':'NO', sub:`heavy 1st-week spend`, color: b.paydaySurge?'var(--warn)':'var(--ok)' },
+  ];
+  document.getElementById('behaviourGrid').innerHTML = bCards.map(bc =>
+    `<div class="b-card">
+      <div class="b-card-label">${bc.label}</div>
+      <div class="b-card-val" style="color:${bc.color}">${bc.val}</div>
+      <div class="b-card-sub">${bc.sub}</div>
+    </div>`
+  ).join('');
+
+  // ── Recommendations ───────────────────────────────────
+  document.getElementById('recList').innerHTML = r.actions.map((a,i) =>
+    `<div class="rec-item">
+      <div class="rec-num">${i+1}</div>
+      <span>${a}</span>
+    </div>`
+  ).join('');
+}
+
+function rebuildCharts() {
+  if (lastResult) buildDashboard(lastResult);
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESET
+══════════════════════════════════════════════════════════ */
+function resetDashboard() {
+  destroyCharts();
+  document.getElementById('dashboard').classList.remove('show');
+  document.getElementById('loadingScreen').classList.remove('show');
+  document.getElementById('heroSection').style.display = '';
+  document.getElementById('dropZone').classList.remove('has-file','has-file');
+  document.getElementById('dropZone').querySelector('p').innerHTML = `<strong>Drop your CSV here</strong> or click to browse`;
+  document.getElementById('fileName').textContent = '';
+  parsedData = null;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ══════════════════════════════════════════════════════════
+   DOWNLOAD REPORT (plain text summary)
+══════════════════════════════════════════════════════════ */
+function downloadReport() {
+  if (!lastResult) return;
+  const r = lastResult; const s = r.summary;
+  const lines = [
+    'AI FINANCIAL LEAK DETECTOR — REPORT',
+    '=====================================',
+    `Salary: ₹${fmt(s.salary)}  |  Goal: ₹${fmt(s.savingsGoal)}`,
+    `Total Spent: ₹${fmt(s.total)}  |  Savings: ₹${fmt(s.savingsActual)} (${s.savingsPct}%)`,
+    `Risk Level: ${s.riskLevel}  |  Risk Score: ${s.riskScore}`,
+    `User Profile: ${s.userProfile}`,
+    '',
+    'ALERTS',
+    '------',
+    ...r.alerts.map(a => `[${a.type.toUpperCase()}] ${a.msg}`),
+    '',
+    'ANOMALOUS TRANSACTIONS',
+    '----------------------',
+    ...r.anomalies.map(a => `${a.dateStr}  ${a.cat}  ₹${fmt(a.amt)}`),
+    '',
+    'RECOMMENDATIONS',
+    '---------------',
+    ...r.actions.map((a,i) => `${i+1}. ${a}`),
+    '',
+    `Generated: ${new Date().toLocaleString()}`,
+  ];
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'finleak-report.txt';
+  a.click();
+}
+</script>
+</body>
+</html>
